@@ -1,0 +1,26 @@
+{
+  "name": "3d-audio-visualizer",
+  "version": "1.0.0",
+  "description": "",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "22.15.0"
+  },
+  "scripts": {
+    "start": "vite",
+    "debug": "vite --debug",
+    "build": "tsc && vite build",
+    "test": "vite preview",
+    "prettier": "prettier --write ./src"
+  },
+  "dependencies": {
+    "three": "^0.176.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.176.0",
+    "prettier": "^3.5.3",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  }
+}

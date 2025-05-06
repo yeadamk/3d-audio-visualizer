@@ -1,5 +1,4 @@
-# CS-174A-Final-Project
-> the repo name is subject to change
+# 3D Audio Visualizer
 
 ## Setup
 Install dependencies
