@@ -1,8 +1,14 @@
 # CS-174A-Final-Project
 > the repo name is subject to change
 
-## Installation
-```npm install```
+## Setup
+Install dependencies
+```
+npm install
+```
 
 ## Testing
-```npm start```
+Start development server
+```
+npm start
+```
