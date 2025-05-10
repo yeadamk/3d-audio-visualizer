@@ -5,13 +5,12 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
-// === Renderer ===
+// === Setup ===
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// === Scene & Camera ===
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111111);
 
@@ -19,22 +18,13 @@ const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerH
 camera.position.set(0, 0, 10);
 camera.lookAt(0, 0, 0);
 
-// === Audio Setup ===
+// === Audio setup ===
 const listener = new THREE.AudioListener();
 camera.add(listener);
-
 const sound = new THREE.Audio(listener);
-const analyser = new THREE.AudioAnalyser(sound, 32);
+let analyser = new THREE.AudioAnalyser(sound, 32);
 
-const audioLoader = new THREE.AudioLoader();
-audioLoader.load('/assets/Beats.mp3', (buffer) => {
-  sound.setBuffer(buffer);
-  window.addEventListener('click', () => {
-    if (!sound.isPlaying) sound.play();
-  });
-});
-
-// === Shader Uniforms ===
+// === Shader setup ===
 const uniforms: { [key: string]: { value: number } } = {
   u_time: { value: 0 },
   u_frequency: { value: 0 },
@@ -56,7 +46,7 @@ const geometry = new THREE.IcosahedronGeometry(2, 5);
 const mesh = new THREE.Mesh(geometry, shaderMaterial);
 scene.add(mesh);
 
-// === GUI ===
+// === GUI controls ===
 const params = {
   red: 1.0,
   green: 1.0,
@@ -67,10 +57,9 @@ const params = {
 };
 
 const gui = new GUI();
-const colorsFolder = gui.addFolder('Colors');
-colorsFolder.add(params, 'red', 0, 1).onChange((v) => (uniforms.u_red.value = v));
-colorsFolder.add(params, 'green', 0, 1).onChange((v) => (uniforms.u_green.value = v));
-colorsFolder.add(params, 'blue', 0, 1).onChange((v) => (uniforms.u_blue.value = v));
+gui.addColor(params, 'red').onChange((v) => (uniforms.u_red.value = v));
+gui.addColor(params, 'green').onChange((v) => (uniforms.u_green.value = v));
+gui.addColor(params, 'blue').onChange((v) => (uniforms.u_blue.value = v));
 
 const bloomFolder = gui.addFolder('Bloom');
 bloomFolder.add(params, 'threshold', 0, 1).onChange((v) => (bloomPass.threshold = v));
@@ -87,13 +76,14 @@ composer.addPass(renderScene);
 composer.addPass(bloomPass);
 composer.addPass(outputPass);
 
-// === Animate ===
+// === Mouse Interaction ===
 let mouseX = 0, mouseY = 0;
 document.addEventListener('mousemove', (e) => {
   mouseX = (e.clientX - window.innerWidth / 2) / 100;
   mouseY = (e.clientY - window.innerHeight / 2) / 100;
 });
 
+// === Animate Loop ===
 const clock = new THREE.Clock();
 function animate() {
   camera.position.x += (mouseX - camera.position.x) * 0.05;
@@ -114,4 +104,35 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// === Load default audio ===
+const audioLoader = new THREE.AudioLoader();
+audioLoader.load('/assets/Beats.mp3', (buffer) => {
+  sound.setBuffer(buffer);
+  window.addEventListener('click', () => {
+    if (!sound.isPlaying) sound.play();
+  });
+});
+
+// === User-uploaded audio ===
+const fileInput = document.getElementById('audioUpload') as HTMLInputElement;
+fileInput.addEventListener('change', (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const arrayBuffer = reader.result as ArrayBuffer;
+    const audioContext = THREE.AudioContext.getContext();
+
+    audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
+      sound.stop(); // stop any existing audio
+      sound.setBuffer(decodedData);
+      analyser = new THREE.AudioAnalyser(sound, 32); // recreate analyser
+      sound.play();
+    });
+  };
+
+  reader.readAsArrayBuffer(file);
 });

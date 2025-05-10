@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>3D Audio Visualizer</title>
+    <input type="file" id="audioUpload" accept="audio/*" style="position: absolute; top: 10px; left: 10px; z-index: 10;" />
     <style>
       body {
         margin: 0;
@@ -11,6 +12,8 @@
     </style>
   </head>
   <body>
+    
+
     <script id="vertexshader" type="x-shader/x-vertex">
       varying vec3 vNormal;
       uniform float u_time;
