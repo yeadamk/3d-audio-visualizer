@@ -142,7 +142,7 @@ window.addEventListener('resize', () => {
 
 // === Load default audio ===
 const audioLoader = new THREE.AudioLoader();
-audioLoader.load('/assets/Beats.mp3', (buffer) => {
+audioLoader.load('/assets/starrynight.mp3', (buffer) => {
   sound.setBuffer(buffer);
   window.addEventListener('click', () => {
     if (!sound.isPlaying) sound.play();
