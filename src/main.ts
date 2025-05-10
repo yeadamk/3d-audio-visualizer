@@ -46,6 +46,20 @@ const geometry = new THREE.IcosahedronGeometry(2, 5);
 const mesh = new THREE.Mesh(geometry, shaderMaterial);
 scene.add(mesh);
 
+// === Particle field ===
+const particleGeometry = new THREE.BufferGeometry().setFromPoints(
+  Array.from({ length: 500 }, () =>
+    new THREE.Vector3(
+      (Math.random() - 0.5) * 30,
+      (Math.random() - 0.5) * 30,
+      (Math.random() - 0.5) * 30
+    )
+  )
+);
+const particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+const particles = new THREE.Points(particleGeometry, particleMaterial);
+scene.add(particles);
+
 // === GUI controls ===
 const params = {
   red: 1.0,
@@ -86,12 +100,32 @@ document.addEventListener('mousemove', (e) => {
 // === Animate Loop ===
 const clock = new THREE.Clock();
 function animate() {
+  const t = clock.getElapsedTime();
+  const freq = analyser.getAverageFrequency() || 0;
+  const f = freq / 256;
+
   camera.position.x += (mouseX - camera.position.x) * 0.05;
   camera.position.y += (-mouseY - camera.position.y) * 0.05;
   camera.lookAt(0, 0, 0);
 
-  uniforms.u_time.value = clock.getElapsedTime();
-  uniforms.u_frequency.value = analyser.getAverageFrequency();
+  uniforms.u_time.value = t;
+  uniforms.u_frequency.value = freq;
+
+  // Audio-reactive scaling
+  const targetScale = 1 + f;
+  mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+
+  // Audio-reactive colors
+  uniforms.u_red.value = Math.abs(Math.sin(t + f));
+  uniforms.u_green.value = Math.abs(Math.sin(t * 0.5 + f * 2));
+  uniforms.u_blue.value = Math.abs(Math.cos(t * 0.7 + f));
+
+  // Particle shimmer
+  particles.rotation.y += 0.002;
+  (particles.material as THREE.PointsMaterial).size = 0.05 + f * 0.3;
+
+  // Audio-reactive bloom
+  bloomPass.strength = 0.5 + f * 1.5;
 
   composer.render();
   requestAnimationFrame(animate);
@@ -127,9 +161,9 @@ fileInput.addEventListener('change', (e: Event) => {
     const audioContext = THREE.AudioContext.getContext();
 
     audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
-      sound.stop(); // stop any existing audio
+      sound.stop();
       sound.setBuffer(decodedData);
-      analyser = new THREE.AudioAnalyser(sound, 32); // recreate analyser
+      analyser = new THREE.AudioAnalyser(sound, 32);
       sound.play();
     });
   };
