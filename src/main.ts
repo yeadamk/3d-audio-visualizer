@@ -33,12 +33,42 @@ let analyser = new THREE.AudioAnalyser(sound, 32);
 // === Clock ===
 const clock = new THREE.Clock();
 
+const shaderMaterial = new THREE.ShaderMaterial({
+  vertexShader: `
+    uniform float u_time;
+    varying vec3 vNormal;
+
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      float displacement = 0.1 * sin(10.0 * position.x + u_time) * cos(10.0 * position.y + u_time);
+      vec3 newPosition = position + normal * displacement;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+
+    void main() {
+      float intensity = pow(0.9 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 4.0);
+      gl_FragColor = vec4(0.5, 1.0, 1.0, 1.0) * intensity;
+    }
+  `,
+  uniforms: {
+    u_time: { value: 0.0 }
+  },
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+
 // === Sphere Setup ===
 const geometry = new THREE.SphereGeometry(2, 64, 64);
 const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-const mesh = new THREE.Mesh(geometry, material);
-scene.add(mesh);
+const mesh = new THREE.Mesh(geometry, shaderMaterial);
 mesh.matrixAutoUpdate = false;
+scene.add(mesh);
+
 
 // === Particle field ===
 const particleGeometry = new THREE.BufferGeometry().setFromPoints(
@@ -53,6 +83,8 @@ const particleGeometry = new THREE.BufferGeometry().setFromPoints(
 const particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
 const particles = new THREE.Points(particleGeometry, particleMaterial);
 scene.add(particles);
+particles.scale.set(10, 10, 10);
+
 
 // === GUI controls ===
 const params = {
@@ -81,7 +113,7 @@ composer.addPass(bloomPass);
 composer.addPass(outputPass);
 
 // === Transformation Utilities ===
-function translationMatrix(tx, ty, tz) {
+function translationMatrix(tx: number, ty: number, tz: number) {
   return new THREE.Matrix4().set(
     1, 0, 0, tx,
     0, 1, 0, ty,
@@ -90,7 +122,7 @@ function translationMatrix(tx, ty, tz) {
   );
 }
 
-function rotationMatrixY(theta) {
+function rotationMatrixY(theta: number) {
   return new THREE.Matrix4().set(
     Math.cos(theta), 0, Math.sin(theta), 0,
     0, 1, 0, 0,
@@ -99,7 +131,7 @@ function rotationMatrixY(theta) {
   );
 }
 
-function rotationMatrixZ(theta) {
+function rotationMatrixZ(theta: number) {
   return new THREE.Matrix4().set(
     Math.cos(theta), -Math.sin(theta), 0, 0,
     Math.sin(theta),  Math.cos(theta), 0, 0,
@@ -108,7 +140,7 @@ function rotationMatrixZ(theta) {
   );
 }
 
-function scaleMatrix(sx, sy, sz) {
+function scaleMatrix(sx: number, sy: number, sz: number) {
   return new THREE.Matrix4().set(
     sx, 0,  0,  0,
     0, sy,  0,  0,
@@ -117,7 +149,7 @@ function scaleMatrix(sx, sy, sz) {
   );
 }
 
-function shearMatrix(shxy, shxz, shyx, shyz, shzx, shzy) {
+function shearMatrix(shxy: number, shxz: number, shyx: number, shyz: number, shzx: number, shzy: number) {
   return new THREE.Matrix4().set(
     1,     shxy, shxz, 0,
     shyx,  1,    shyz, 0,
@@ -129,6 +161,8 @@ function shearMatrix(shxy, shxz, shyx, shyz, shzx, shzy) {
 // === Animate Loop ===
 function animate() {
   requestAnimationFrame(animate);
+  (shaderMaterial.uniforms.u_time.value = clock.getElapsedTime());
+
 
   const t = clock.getElapsedTime();
   const freq = analyser.getAverageFrequency() || 0;
