@@ -175,7 +175,7 @@ function animate() {
     const s = 1 + f;
     model_transform.multiply(scaleMatrix(s, s, s));
   } else if (freq >= 85 && freq < 170) {
-    const sh = 0.2 * Math.sin(t);
+    const sh = 0.7 * Math.sin(t);
     model_transform.multiply(shearMatrix(0, sh, sh, 0, 0, sh));
   } else {
     model_transform
