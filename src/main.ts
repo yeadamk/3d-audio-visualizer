@@ -5,6 +5,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
+
+const clock = new THREE.Clock();
 // === Setup ===
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -36,15 +38,23 @@ const uniforms: { [key: string]: { value: number } } = {
 const vertexShader = (document.getElementById('vertexshader') as HTMLScriptElement)?.textContent || '';
 const fragmentShader = (document.getElementById('fragmentshader') as HTMLScriptElement)?.textContent || '';
 
-const shaderMaterial = new THREE.ShaderMaterial({
-  uniforms,
-  vertexShader,
-  fragmentShader
-});
+const shaderMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // TEMP
 
-const geometry = new THREE.IcosahedronGeometry(2, 5);
+
+const geometry = new THREE.SphereGeometry(2, 64, 64);
+
 const mesh = new THREE.Mesh(geometry, shaderMaterial);
+mesh.matrixAutoUpdate = false; // Disable auto-updates so manual matrices work
+mesh.matrix.identity();
+
+// Keep camera-facing orientation
+mesh.matrix.multiply(rotationMatrixY(clock.getElapsedTime() * 0.2));
+
+// Now apply effect-specific matrices below...
+
+
 scene.add(mesh);
+
 
 // === Particle field ===
 const particleGeometry = new THREE.BufferGeometry().setFromPoints(
@@ -97,8 +107,70 @@ document.addEventListener('mousemove', (e) => {
   mouseY = (e.clientY - window.innerHeight / 2) / 100;
 });
 
+
+function translationMatrix(tx: number, ty: number, tz: number): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    1, 0, 0, tx,
+    0, 1, 0, ty,
+    0, 0, 1, tz,
+    0, 0, 0, 1
+  );
+}
+
+function rotationMatrixX(theta: number): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    1, 0, 0, 0,
+    0, Math.cos(theta), -Math.sin(theta), 0,
+    0, Math.sin(theta),  Math.cos(theta), 0,
+    0, 0, 0, 1
+  );
+}
+
+function rotationMatrixY(theta: number): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    Math.cos(theta), 0, Math.sin(theta), 0,
+    0, 1, 0, 0,
+    -Math.sin(theta), 0, Math.cos(theta), 0,
+    0, 0, 0, 1
+  );
+}
+
+function rotationMatrixZ(theta: number): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    Math.cos(theta), -Math.sin(theta), 0, 0,
+    Math.sin(theta),  Math.cos(theta), 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+  );
+}
+
+function scaleMatrix(sx: number, sy: number, sz: number): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    sx, 0,  0,  0,
+    0, sy,  0,  0,
+    0,  0, sz,  0,
+    0,  0,  0,  1
+  );
+}
+
+function shearMatrix(
+  shxy: number, shxz: number,
+  shyx: number, shyz: number,
+  shzx: number, shzy: number
+): THREE.Matrix4 {
+  return new THREE.Matrix4().set(
+    1,     shxy, shxz, 0,
+    shyx,  1,    shyz, 0,
+    shzx,  shzy, 1,    0,
+    0,     0,    0,    1
+  );
+}
+
+
+
+
 // === Animate Loop ===
-const clock = new THREE.Clock();
+
 function animate() {
   const t = clock.getElapsedTime();
   const freq = analyser.getAverageFrequency() || 0;
@@ -112,8 +184,36 @@ function animate() {
   uniforms.u_frequency.value = freq;
 
   // Audio-reactive scaling
-  const targetScale = 1 + f;
-  mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+  // Reset transform
+mesh.matrix.identity();
+mesh.updateMatrix();
+
+// Low frequency: scale
+if (freq < 85) {
+  const s = 1 + f;
+  const scaleMat = scaleMatrix(s, s, s);
+  mesh.applyMatrix4(scaleMat);
+}
+
+// Mid frequency: shear
+else if (freq >= 85 && freq < 170) {
+  const sh = 0.2 * Math.sin(clock.getElapsedTime());
+  const shearMat = shearMatrix(0, sh, sh, 0, 0, sh);
+  mesh.applyMatrix4(shearMat);
+}
+
+// High frequency: translate + rotate
+else {
+  const angle = clock.getElapsedTime();
+  const rotY = rotationMatrixY(angle * 0.5);
+  const rotZ = rotationMatrixZ(angle * 0.3);
+  const trans = translationMatrix(Math.sin(angle) * 0.5, 0, 0);
+
+  mesh.applyMatrix4(rotY);
+  mesh.applyMatrix4(rotZ);
+  mesh.applyMatrix4(trans);
+}
+
 
   // Audio-reactive colors
   uniforms.u_red.value = Math.abs(Math.sin(t + f));
@@ -142,12 +242,12 @@ window.addEventListener('resize', () => {
 
 // === Load default audio ===
 const audioLoader = new THREE.AudioLoader();
-audioLoader.load('/assets/starrynight.mp3', (buffer) => {
-  sound.setBuffer(buffer);
-  window.addEventListener('click', () => {
-    if (!sound.isPlaying) sound.play();
-  });
-});
+// audioLoader.load('/assets/starrynight.mp3', (buffer) => {
+//   sound.setBuffer(buffer);
+//   // window.addEventListener('click', () => {
+//   //   if (!sound.isPlaying) sound.play();
+//   // });
+// });
 
 // === User-uploaded audio ===
 const fileInput = document.getElementById('audioUpload') as HTMLInputElement;
