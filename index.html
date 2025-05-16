@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <title>3D Audio Visualizer</title>
-    <input type="file" id="audioUpload" accept="audio/*" style="position: absolute; top: 10px; left: 10px; z-index: 10;" />
     <style>
       body {
         margin: 0;
@@ -12,8 +11,7 @@
     </style>
   </head>
   <body>
-    
-
+    <input type="file" id="audioUpload" accept="audio/*" style="position: absolute; top: 10px; left: 10px; z-index: 10;" />
     <script id="vertexshader" type="x-shader/x-vertex">
       varying vec3 vNormal;
       uniform float u_time;
@@ -23,7 +21,6 @@
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
     </script>
-
     <script id="fragmentshader" type="x-shader/x-fragment">
       uniform float u_frequency;
       uniform float u_red;
@@ -36,7 +33,6 @@
         gl_FragColor = vec4(color, 1.0);
       }
     </script>
-
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

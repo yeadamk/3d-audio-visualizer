@@ -33,7 +33,16 @@ let analyser = new THREE.AudioAnalyser(sound, 32);
 // === Clock ===
 const clock = new THREE.Clock();
 
+const uniforms = {
+	u_time: {type: 'f', value: 0.0},
+	u_frequency: {type: 'f', value: 0.0},
+	u_red: {type: 'f', value: 1.0},
+	u_green: {type: 'f', value: 1.0},
+	u_blue: {type: 'f', value: 1.0}
+}
+
 const shaderMaterial = new THREE.ShaderMaterial({
+  uniforms,
   vertexShader: `
     uniform float u_time;
     varying vec3 vNormal;
@@ -47,15 +56,16 @@ const shaderMaterial = new THREE.ShaderMaterial({
   `,
   fragmentShader: `
     varying vec3 vNormal;
+    uniform float u_red;
+    uniform float u_green;
+    uniform float u_blue;
 
     void main() {
       float intensity = pow(0.9 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 4.0);
-      gl_FragColor = vec4(0.5, 1.0, 1.0, 1.0) * intensity;
+      vec3 baseColor = vec3(u_red, u_green, u_blue);
+      gl_FragColor = vec4(baseColor * intensity, 1.0);
     }
   `,
-  uniforms: {
-    u_time: { value: 0.0 }
-  },
   transparent: true,
   blending: THREE.AdditiveBlending,
   depthWrite: false
@@ -85,7 +95,6 @@ const particles = new THREE.Points(particleGeometry, particleMaterial);
 scene.add(particles);
 particles.scale.set(10, 10, 10);
 
-
 // === GUI controls ===
 const params = {
   red: 1.0,
@@ -97,10 +106,20 @@ const params = {
 };
 
 const gui = new GUI();
+gui.add(params, 'red', 0, 1)
+   .onChange(v => uniforms.u_red.value = Number(v));
+gui.add(params, 'green', 0, 1)
+   .onChange(v => uniforms.u_green.value = Number(v));
+gui.add(params, 'blue', 0, 1)
+   .onChange(v => uniforms.u_blue.value = Number(v));
+
 const bloomFolder = gui.addFolder('Bloom');
-bloomFolder.add(params, 'threshold', 0, 1);
-bloomFolder.add(params, 'strength', 0, 3);
-bloomFolder.add(params, 'radius', 0, 1);
+bloomFolder.add(params, 'threshold', 0, 1)
+           .onChange(v => bloomPass.threshold = v);
+bloomFolder.add(params, 'strength', 0, 3)
+           .onChange(v => bloomPass.strength = v);
+bloomFolder.add(params, 'radius', 0, 1)
+           .onChange(v => bloomPass.radius = v);
 
 // === Postprocessing ===
 const renderScene = new RenderPass(scene, camera);
