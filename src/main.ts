@@ -161,39 +161,49 @@ function shearMatrix(shxy: number, shxz: number, shyx: number, shyz: number, shz
 // === Animate Loop ===
 function animate() {
   requestAnimationFrame(animate);
-  (shaderMaterial.uniforms.u_time.value = clock.getElapsedTime());
-
 
   const t = clock.getElapsedTime();
-  const freq = analyser.getAverageFrequency() || 0;
-  const f = freq / 256;
+  shaderMaterial.uniforms.u_time.value = t;
 
-  // Update transform matrix
+  const freqData = analyser.getFrequencyData();
+  const bass = freqData.slice(0, 4).reduce((a, b) => a + b, 0) / 4;
+  const mid = freqData.slice(4, 16).reduce((a, b) => a + b, 0) / 12;
+  const treble = freqData.slice(16).reduce((a, b) => a + b, 0) / 16;
+
+  const b = bass / 256;
+  const m = mid / 256;
+  const tr = treble / 256;
+
+  // === Transformations ===
   let model_transform = new THREE.Matrix4();
 
-  if (freq < 85) {
-    const s = 1 + f;
-    model_transform.multiply(scaleMatrix(s, s, s));
-  } else if (freq >= 85 && freq < 170) {
-    const sh = 0.7 * Math.sin(t);
-    model_transform.multiply(shearMatrix(0, sh, sh, 0, 0, sh));
-  } else {
-    model_transform
-      .multiply(rotationMatrixY(t * 0.5))
-      .multiply(rotationMatrixZ(t * 0.3))
-      .multiply(translationMatrix(Math.sin(t) * 0.5, 0, 0));
-  }
+  // 1. Pulsing scale for bass
+  const bassScale = 1 + 0.3 * Math.sin(t * 4) * b;
+  model_transform.multiply(scaleMatrix(bassScale, bassScale, bassScale));
+
+  // 2. Smooth shear for mids
+  const shearAmount = 0.4 * Math.sin(t * 2) * m;
+  model_transform.multiply(shearMatrix(0, shearAmount, shearAmount, 0, 0, shearAmount));
+
+  // 3. Treble-based spin and bounce
+  const bounceY = Math.sin(t * 6) * tr * 0.5;
+  model_transform
+    .multiply(rotationMatrixY(t * 1.5 * tr))
+    .multiply(rotationMatrixZ(t * 0.7 * tr))
+    .multiply(translationMatrix(Math.sin(t * 2) * tr, bounceY, 0));
 
   mesh.matrix.copy(model_transform);
 
-  particles.rotation.y += 0.002;
-  (particles.material).size = 0.05 + f * 0.3;
+  // === Particles shimmer with frequency
+  particles.rotation.y += 0.002 + tr * 0.01;
+  (particles.material).size = 0.05 + (b + tr) * 0.3;
 
-  bloomPass.strength = 0.5 + f * 1.5;
+  bloomPass.strength = 0.5 + (b + m + tr) * 1.2;
 
   controls.update();
   composer.render();
 }
+
 animate();
 
 // === Resize ===
