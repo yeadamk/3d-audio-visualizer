@@ -3,16 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <title>3D Audio Visualizer</title>
-    <input type="file" id="audioUpload" accept="audio/*" style="position: absolute; top: 10px; left: 10px; z-index: 10;" />
     <style>
       body {
         margin: 0;
         overflow: hidden;
       }
+      #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 10;
+        color: white;
+      }
+      #controls label {
+        display: block;
+        margin-top: 5px;
+      }
     </style>
   </head>
   <body>
-    
+    <div id="controls">
+      <input type="file" id="audioUpload" accept="audio/*" />
+      <label><input type="radio" name="audioSource" value="file" checked /> Use File</label>
+      <label><input type="radio" name="audioSource" value="mic" /> Use Microphone</label>
+    </div>
 
     <script id="vertexshader" type="x-shader/x-vertex">
       varying vec3 vNormal;
@@ -40,4 +54,3 @@
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
-

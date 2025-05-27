@@ -27,8 +27,78 @@ controls.maxDistance = 30;
 // === Audio setup ===
 const listener = new THREE.AudioListener();
 camera.add(listener);
-const sound = new THREE.Audio(listener);
+let sound = new THREE.Audio(listener);
+let micStream: MediaStream | null = null;
+let micSource: THREE.Audio | null = null;
 let analyser = new THREE.AudioAnalyser(sound, 32);
+
+const fileInput = document.getElementById('audioUpload') as HTMLInputElement;
+const audioRadios = document.getElementsByName('audioSource') as NodeListOf<HTMLInputElement>;
+
+function setupFileUpload() {
+  fileInput.disabled = false;
+
+  if (micStream) {
+    micStream.getTracks().forEach(track => track.stop());
+    micStream = null;
+  }
+  if (micSource) {
+    micSource.disconnect();
+    micSource = null;
+  }
+
+  fileInput.addEventListener('change', (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const arrayBuffer = reader.result as ArrayBuffer;
+      const audioContext = THREE.AudioContext.getContext();
+
+      audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+        sound = new THREE.Audio(listener);
+        sound.setBuffer(decodedData);
+        analyser = new THREE.AudioAnalyser(sound, 32);
+        sound.play();
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function setupMicrophoneInput() {
+  if (sound && sound.isPlaying) {
+    sound.stop();
+  }
+
+  navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    micStream = stream;
+    micSource = new THREE.Audio(listener);
+    micSource.setMediaStreamSource(stream);
+    analyser = new THREE.AudioAnalyser(micSource, 32);
+  }).catch((err) => {
+    alert('Microphone access denied or not available.');
+    console.error(err);
+  });
+}
+
+function updateAudioSource() {
+  const selected = Array.from(audioRadios).find(r => r.checked)?.value;
+  if (selected === 'mic') {
+    fileInput.disabled = true;
+    setupMicrophoneInput();
+  } else {
+    setupFileUpload();
+  }
+}
+
+audioRadios.forEach(radio => radio.addEventListener('change', updateAudioSource));
+updateAudioSource();
 
 // === Clock ===
 const clock = new THREE.Clock();
@@ -61,14 +131,11 @@ const shaderMaterial = new THREE.ShaderMaterial({
   depthWrite: false
 });
 
-
 // === Sphere Setup ===
 const geometry = new THREE.SphereGeometry(2, 64, 64);
-const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 const mesh = new THREE.Mesh(geometry, shaderMaterial);
 mesh.matrixAutoUpdate = false;
 scene.add(mesh);
-
 
 // === Particle field ===
 const particleGeometry = new THREE.BufferGeometry().setFromPoints(
@@ -84,7 +151,6 @@ const particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 }
 const particles = new THREE.Points(particleGeometry, particleMaterial);
 scene.add(particles);
 particles.scale.set(10, 10, 10);
-
 
 // === GUI controls ===
 const params = {
@@ -174,18 +240,14 @@ function animate() {
   const m = mid / 256;
   const tr = treble / 256;
 
-  // === Transformations ===
   let model_transform = new THREE.Matrix4();
 
-  // 1. Pulsing scale for bass
   const bassScale = 1 + 0.3 * Math.sin(t * 4) * b;
   model_transform.multiply(scaleMatrix(bassScale, bassScale, bassScale));
 
-  // 2. Smooth shear for mids
   const shearAmount = 0.4 * Math.sin(t * 2) * m;
   model_transform.multiply(shearMatrix(0, shearAmount, shearAmount, 0, 0, shearAmount));
 
-  // 3. Treble-based spin and bounce
   const bounceY = Math.sin(t * 6) * tr * 0.5;
   model_transform
     .multiply(rotationMatrixY(t * 1.5 * tr))
@@ -193,11 +255,8 @@ function animate() {
     .multiply(translationMatrix(Math.sin(t * 2) * tr, bounceY, 0));
 
   mesh.matrix.copy(model_transform);
-
-  // === Particles shimmer with frequency
   particles.rotation.y += 0.002 + tr * 0.01;
   (particles.material).size = 0.05 + (b + tr) * 0.3;
-
   bloomPass.strength = 0.5 + (b + m + tr) * 1.2;
 
   controls.update();
@@ -212,26 +271,4 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// === User-uploaded audio ===
-const fileInput = document.getElementById('audioUpload') as HTMLInputElement;
-fileInput.addEventListener('change', (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    const arrayBuffer = reader.result as ArrayBuffer;
-    const audioContext = THREE.AudioContext.getContext();
-
-    audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
-      sound.stop();
-      sound.setBuffer(decodedData);
-      analyser = new THREE.AudioAnalyser(sound, 32);
-      sound.play();
-    });
-  };
-
-  reader.readAsArrayBuffer(file);
 });
