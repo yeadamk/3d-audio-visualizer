@@ -22,11 +22,15 @@
     </style>
   </head>
   <body>
+
     <div id="controls">
       <input type="file" id="audioUpload" accept="audio/*" />
       <label><input type="radio" name="audioSource" value="file" checked /> Use File</label>
       <label><input type="radio" name="audioSource" value="mic" /> Use Microphone</label>
     </div>
+
+
+   
 
     <script id="vertexshader" type="x-shader/x-vertex">
       varying vec3 vNormal;
@@ -37,7 +41,6 @@
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
     </script>
-
     <script id="fragmentshader" type="x-shader/x-fragment">
       uniform float u_frequency;
       uniform float u_red;
@@ -50,7 +53,6 @@
         gl_FragColor = vec4(color, 1.0);
       }
     </script>
-
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

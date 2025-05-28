@@ -86,6 +86,7 @@ function updateAudioSource(): void {
 updateAudioSource();
 
 // === Clock ===
+
 const clock: THREE.Clock = new THREE.Clock();
 
 // === Particle Sphere Setup ===
@@ -112,10 +113,14 @@ scene.add(particleGroup);
 // === GUI Controls ===
 const params = { red: 1.0, green: 1.0, blue: 1.0, threshold: 0.5, strength: 0.5, radius: 0.8 };
 const gui: GUI = new GUI();
+
 const bloomFolder = gui.addFolder('Bloom');
-bloomFolder.add(params, 'threshold', 0, 1);
-bloomFolder.add(params, 'strength', 0, 3);
-bloomFolder.add(params, 'radius', 0, 1);
+bloomFolder.add(params, 'threshold', 0, 1)
+           .onChange(v => bloomPass.threshold = v);
+bloomFolder.add(params, 'strength', 0, 3)
+           .onChange(v => bloomPass.strength = v);
+bloomFolder.add(params, 'radius', 0, 1)
+           .onChange(v => bloomPass.radius = v);
 
 // === Postprocessing ===
 const renderScene: RenderPass = new RenderPass(scene, camera);
