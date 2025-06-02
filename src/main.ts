@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { applyTrebleBumps } from './utils/applyTreble';
 
 // === Setup ===
 const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true });
@@ -102,6 +103,10 @@ for (let i = 0; i < N; i++) {
     radius * Math.cos(theta)
   );
 }
+const originalPositions = new Float32Array(positions);
+
+
+
 const particleGeometry: THREE.BufferGeometry = new THREE.BufferGeometry();
 particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 const particleMaterial: THREE.PointsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, blending: THREE.AdditiveBlending });
@@ -184,6 +189,10 @@ function animate(): void {
   const b = bass / 256;
   const m = mid / 256;
   const tr = treble / 256;
+
+  const posAttr = particleGeometry.getAttribute('position') as THREE.BufferAttribute;
+applyTrebleBumps(posAttr, originalPositions, tr, N);
+
 
   let model_transform = new THREE.Matrix4();
   const bassScale = 1 + 0.3 * Math.sin(t * 4) * b;
