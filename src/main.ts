@@ -9,14 +9,17 @@ import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { rotationMatrixY, rotationMatrixZ, scaleMatrix, shearMatrix } from '@/utils/matrixUtils';
 import { createNoise4D } from 'simplex-noise';
+import { applyTrebleBumps } from '@/utils/applyTrebleBumps';
 import vertexShader from '@/shaders/vertex.glsl';
 import fragmentShader from '@/shaders/fragment.glsl';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RENDERER, SCENE, CAMERA
 // ─────────────────────────────────────────────────────────────────────────────
-const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true, failIfMajorPerformanceCaveat: true});
+const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene: THREE.Scene = new THREE.Scene();
@@ -180,7 +183,7 @@ pauseButton.addEventListener('click', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 const SPHERE_RADIUS = 2;
 const SEGMENTS = 128;
-const N = 500; // number of particles
+const N = 1000; // number of particles
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PARTICLES
@@ -298,6 +301,9 @@ const sphereMaterial = new THREE.MeshStandardMaterial({
 sphereMaterial.needsUpdate = true;
 
 const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+sphereMesh.matrixAutoUpdate = false;
+sphereMesh.castShadow = true;
+sphereMesh.receiveShadow = true;
 scene.add(sphereMesh);
 
 const originalSpherePositions = new Float32Array(sphereGeometry.attributes.position.count * 3);
@@ -389,7 +395,7 @@ function applyRockyPack() {
 // ─────────────────────────────────────────────────────────────────────────────
 // LIGHTING
 // ─────────────────────────────────────────────────────────────────────────────
-const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
 const rimLight = new THREE.DirectionalLight(0x5599ff, 0.4);
@@ -399,6 +405,24 @@ scene.add(rimLight);
 const fillLight = new THREE.DirectionalLight(0xffaa66, 0.4);
 fillLight.position.set(2, -1, 1);
 scene.add(fillLight);
+
+const spotLight = new THREE.SpotLight(0xffffff, 1.2);
+spotLight.position.set(0, 6, 0);                // high above the sphere
+spotLight.angle = Math.PI / 6;                  // cone angle (30°)
+spotLight.penumbra = 0.2;                       // soft edge
+spotLight.decay = 2;                            // falloff
+spotLight.distance = 15;                        // max range
+
+// Enable shadow casting for this light:
+spotLight.castShadow = true;
+spotLight.shadow.mapSize.width = 2048;          // increase for crisper shadows
+spotLight.shadow.mapSize.height = 2048;
+spotLight.shadow.camera.near = 1;
+spotLight.shadow.camera.far = 50;
+spotLight.shadow.camera.fov = 15;               // match angle
+
+scene.add(spotLight);
+spotLight.target = sphereMesh;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENVIRONMENT PARTICLES
@@ -565,12 +589,12 @@ window.addEventListener('resize', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const GRAVITY = 300;         // Gravity acceleration (y-axis)
+const GRAVITY = 300;           // Gravity acceleration (y-axis)
 const BOUNCE_DAMPING = 0.05;   // Speed retained after a bounce
 const PARTICLE_DRAG = 0.98;
 
 const noiseSpatialScale = 2;
-const noiseTimeScale = 1.5;
+const noiseTimeScale = 1.8;
 const noiseAmplitude = 1.3;
 const baseSpike = 0.5;
 
@@ -581,9 +605,14 @@ const speed = 0.03;
 const REST_BASS_SCALE = 1;
 const BASS_SENSIIVITY = 1.2;
 
+// Cutoffs
+const bassCutoff = 0.7;       // 70%
+const midCutoff = 0.0;        // 0%
+const trebleCutoff = 0.1;     // 10%
+
 // Bloom
 const baseStrength = 0.6;
-const strengthIntensity = 1.4;
+const strengthIntensity = 0.7;
 
 const baseThreshold = 0.4;
 const thresholdIntensity = 0.3;
@@ -633,9 +662,14 @@ function animate(): void {
     const treble = freqData.slice(16).reduce((a, b) => a + b, 0) / 16;
 
     // Normalize to range [0..1]
-    const b = bass / 256;
-    const m = mid / 256;
-    const tr = treble / 256;
+    const bNorm = bass / 256;
+    const mNorm = mid / 256;
+    const tNorm = treble / 256;
+
+    // Cut-offs
+    const b = (bNorm > bassCutoff) ? (bNorm - bassCutoff) / (1 - bassCutoff) : 0;
+    const m = (mNorm > midCutoff) ? (mNorm - midCutoff) / (1 - midCutoff) : 0;
+    const tr = (tNorm > trebleCutoff) ? (tNorm - trebleCutoff) / (1 - trebleCutoff) : 0;
 
     // Dynamic bloom adjustments
     bloomPass.strength  = baseStrength + (m + tr) * strengthIntensity;
@@ -645,23 +679,27 @@ function animate(): void {
     // === SPHERE ===
     // Bass-driven scaling
     targetBassScale = REST_BASS_SCALE + BASS_SENSIIVITY * b;
-    currentBassScale += (targetBassScale - currentBassScale) * 0.2;
+    currentBassScale += (targetBassScale - currentBassScale) * 0.05;
+    currentBassScale = THREE.MathUtils.clamp(currentBassScale, 1, 1.5);
     const sphereBassScale = currentBassScale;
-    // sphereMesh.scale.set(sphereBassScale, sphereBassScale, sphereBassScale);
 
+    // Emissive intensity
+    sphereMaterial.emissiveIntensity = THREE.MathUtils.clamp(b * 1.5, 0, 1);
+
+    // Dynamic sphere scaling, shearing, and rotation
     const matScale: THREE.Matrix4 = scaleMatrix(
       sphereBassScale,
       sphereBassScale,
       sphereBassScale
     );
 
-    const angleY = time * 0.2 + m * Math.PI;
+    const angleY = m * 0.8;
     const matRotY: THREE.Matrix4 = rotationMatrixY(angleY);
 
-    const angleZ = tr * Math.PI * 0.5;
+    const angleZ = tr * 0.8;
     const matRotZ: THREE.Matrix4 = rotationMatrixZ(angleZ);
 
-    const shearAmount = tr * 0.3;
+    const shearAmount = tr * 0.03;
     const matShear: THREE.Matrix4 = shearMatrix(
       /* shxy */ shearAmount,
       /* shxz */ 0,
@@ -681,14 +719,14 @@ function animate(): void {
 
     sphereMesh.matrix.copy(combinedSphereMatrix);
 
-    // Mid/treble spikes: displace each vertex along its normal
+    // Spikes: displace each vertex along its normal
     const spherePosAttr = sphereGeometry.attributes.position as THREE.BufferAttribute;
     const sphereNormAttr = sphereGeometry.attributes.normal as THREE.BufferAttribute;
 
     for (let i = 0; i < spherePosAttr.count; i++) {
       // original position of this vertex (x,y,z)
       const idx3 = 3 * i;
-      const ox = originalSpherePositions[idx3];
+      const ox = originalSpherePositions[idx3 + 0];
       const oy = originalSpherePositions[idx3 + 1];
       const oz = originalSpherePositions[idx3 + 2];
 
@@ -721,6 +759,10 @@ function animate(): void {
 
     // === PARTICLES ===
     const deltaTime = clock.getDelta(); // elapsed seconds since last frame
+
+    applyTrebleBumps(particlePositions, originalParticlePositions, tr, N);
+    particleGeometry.attributes.position.needsUpdate = true;
+
     for (let i = 0; i < N; i++) {
       const idx = 3 * i;
 
