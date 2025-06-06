@@ -8,7 +8,6 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { translationMatrix, rotationMatrixY, rotationMatrixZ, scaleMatrix, shearMatrix } from '@/utils/matrixUtils';
-import { applyTrebleBumps } from '@/utils/applyTreble';
 import { createNoise4D } from 'simplex-noise';
 import vertexShader from '@/shaders/vertex.glsl';
 import fragmentShader from '@/shaders/fragment.glsl';
@@ -60,7 +59,6 @@ const pauseButton = document.getElementById('pauseButton') as HTMLButtonElement;
 function setupFileUpload(): void {
   fileInput.disabled = false;
 
-  // If the mic was active, stop it
   if (micStream) {
     micStream.getTracks().forEach((track) => track.stop());
     micStream = null;
@@ -71,34 +69,19 @@ function setupFileUpload(): void {
   }
 
   pauseButton.textContent = 'Pause';
-  pauseButton.disabled = true; // until a file is loaded
-
-  fileInput.addEventListener('change', (e: Event) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const arrayBuffer = reader.result as ArrayBuffer;
-      const audioContext = THREE.AudioContext.getContext();
-      audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
-        if (sound && sound.isPlaying) sound.stop();
-        sound = new THREE.Audio(listener);
-        sound.setBuffer(decodedData);
-
-        analyser = new THREE.AudioAnalyser(sound, 32);
-
-        sound.play();
-        pauseButton.disabled = false;
-      });
-    };
-    reader.readAsArrayBuffer(file);
-  });
+  pauseButton.disabled = true;
 }
 
 function setupMicrophoneInput(): void {
   if (sound && sound.isPlaying) sound.stop();
+  sound = new THREE.Audio(listener);
+  analyser = new THREE.AudioAnalyser(sound, 32);
+
+  fileInput.value = '';
+  fileInput.disabled = true;
+
   pauseButton.disabled = true;
+  pauseButton.textContent = 'Listen';
 
   navigator.mediaDevices
     .getUserMedia({ audio: true })
@@ -106,7 +89,12 @@ function setupMicrophoneInput(): void {
       micStream = stream;
       micSource = new THREE.Audio(listener);
       micSource.setMediaStreamSource(stream);
+      micSource.play();
+      
       analyser = new THREE.AudioAnalyser(micSource, 32);
+
+      pauseButton.disabled = false;
+      pauseButton.textContent = 'Pause';
     })
     .catch((err) => {
       alert('Microphone access denied or not available.');
@@ -125,8 +113,57 @@ function updateAudioSource(): void {
 }
 updateAudioSource();
 
+// File upload
+fileInput.addEventListener('change', (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  if (micStream) {
+    micStream.getTracks().forEach((t) => t.stop());
+    micStream = null;
+  }
+  if (micSource) {
+    micSource.disconnect();
+    micSource = null;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const arrayBuffer = reader.result as ArrayBuffer;
+    const audioContext = THREE.AudioContext.getContext();
+    audioContext.decodeAudioData(arrayBuffer, (decodedData) => {
+      if (sound && sound.isPlaying) sound.stop();
+      sound = new THREE.Audio(listener);
+      sound.setBuffer(decodedData);
+
+      analyser = new THREE.AudioAnalyser(sound, 32);
+      sound.play();
+
+      pauseButton.disabled = false;
+      pauseButton.textContent = 'Pause';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+});
+
 // Toggle Pause
 pauseButton.addEventListener('click', () => {
+  if (micSource && micStream) {
+    const tracks = micStream.getAudioTracks();
+    if (tracks.length > 0) {
+      const currentlyEnabled = tracks[0].enabled;
+
+      if (currentlyEnabled) {
+        tracks.forEach((t) => (t.enabled = false));
+        pauseButton.textContent = 'Listen';
+      } else {
+        tracks.forEach((t) => (t.enabled = true));
+        pauseButton.textContent = 'Pause';
+      }
+    }
+    return;
+  }
+
   if (!sound.buffer) return;
 
   if (sound.isPlaying) {
@@ -213,46 +250,48 @@ const particleGroup: THREE.Object3D = new THREE.Object3D();
 particleGroup.add(sphericalParticles);
 scene.add(particleGroup);
 
-// scene.add(sphericalParticles);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SOLID MESH SPHERE
 // ─────────────────────────────────────────────────────────────────────────────
 const textureLoader = new THREE.TextureLoader();
 
 // Snow texture
-const snowDiffuse = textureLoader.load('/assets/snow_02_diff_4k.jpg');
+const snowDiffuse = textureLoader.load('/assets/textures/snow/snow_02_diff_4k.jpg');
 snowDiffuse.wrapS = THREE.RepeatWrapping;
 snowDiffuse.wrapT = THREE.RepeatWrapping;
 
-const snowDisplacement = textureLoader.load('/assets/snow_02_disp_4k.png');
+const snowDisplacement = textureLoader.load('/assets/textures/snow/snow_02_disp_4k.png');
 snowDisplacement.wrapS = THREE.RepeatWrapping;
 snowDisplacement.wrapT = THREE.RepeatWrapping;
 
-const snowRoughness = textureLoader.load('/assets/snow_02_rough_4k.jpg');
+const snowRoughness = textureLoader.load('/assets/textures/snow/snow_02_rough_4k.jpg');
 snowRoughness.wrapS = THREE.RepeatWrapping;
 snowRoughness.wrapT = THREE.RepeatWrapping;
 
-const snowTranslucent = textureLoader.load('/assets/snow_02_translucent_4k.png');
+const snowTranslucent = textureLoader.load('/assets/textures/snow/snow_02_translucent_4k.png');
 snowTranslucent.wrapS = THREE.RepeatWrapping;
 snowTranslucent.wrapT = THREE.RepeatWrapping;
 
 // Rocky texture
-const rockyDiffuse = textureLoader.load('/textures/rocky_terrain_diff_4k.jpg')
+const rockyDiffuse = textureLoader.load('/assets/textures/rocky/rocky_terrain_diff_4k.jpg')
 rockyDiffuse.wrapS = THREE.RepeatWrapping;
 rockyDiffuse.wrapT = THREE.RepeatWrapping;
 
-const rockyDisplacement = textureLoader.load('/textures/rocky_terrain_disp_4k.png')
+const rockyDisplacement = textureLoader.load('/assets/textures/rocky/rocky_terrain_disp_4k.png')
 rockyDisplacement.wrapS = THREE.RepeatWrapping;
 rockyDisplacement.wrapT = THREE.RepeatWrapping;
 
-const rockyRoughness = snowRoughness;
+const rockyRoughness = textureLoader.load('/assets/textures/rocky/rocky_terrain_rough_4k.jpg')
+rockyRoughness.wrapS = THREE.RepeatWrapping;
+rockyRoughness.wrapT = THREE.RepeatWrapping;
+
 const rockyTranslucent: THREE.Texture | null = null;
 
 const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, SEGMENTS, SEGMENTS);
 const sphereMaterial = new THREE.MeshStandardMaterial({
   color: 0xffffff,
   wireframe: true,
+  opacity: 1.0,
   transparent: true,
   side: THREE.DoubleSide,
 });
@@ -323,7 +362,7 @@ function applySnowPack() {
 
   sphereMaterial.roughnessMap = snowRoughness;
   sphereMaterial.alphaMap = snowTranslucent;
-  // sphereMaterial.alphaTest = 0.5;
+  sphereMaterial.alphaTest = 0;
   sphereMaterial.transparent = true;
 
   sphereMaterial.needsUpdate = true;
@@ -340,8 +379,8 @@ function applyRockyPack() {
   sphereMaterial.displacementBias = -0.1;
 
   sphereMaterial.roughnessMap = rockyRoughness;
-  // sphereMaterial.alphaMap = rockyTranslucent;
-  // sphereMaterial.alphaTest = 0;
+  sphereMaterial.alphaMap = rockyTranslucent;
+  sphereMaterial.alphaTest = 0;
   sphereMaterial.transparent = false;
 
   sphereMaterial.needsUpdate = true;
@@ -515,6 +554,7 @@ function animate(): void {
 
   // Get frequency data from analyser
   if (isAudioPlaying) {
+    sphericalParticles.visible = true;
     const freqData: Uint8Array = analyser.getFrequencyData();
 
     // Compute an overall “frequency” value
@@ -569,7 +609,7 @@ function animate(): void {
     const combinedSphereMatrix = new THREE.Matrix4();
 
     combinedSphereMatrix
-    .copy(matRotZ)            // start as Rz
+    .copy(matRotZ)            // Rz
     .multiply(matRotY)        // Rz * Ry
     .multiply(matShear)       // Rz * Ry * Shear
     .multiply(matScale);      // Rz * Ry * Shear * Scale
@@ -687,7 +727,8 @@ function animate(): void {
 
     particleGeometry.attributes.position.needsUpdate = true;
   } else {
-    sphereMesh.scale.set(1, 1, 1);
+    sphericalParticles.visible = false;
+    // sphereMesh.scale.set(1, 1, 1);
     const spherePosAttr = sphereGeometry.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < spherePosAttr.count * 3; i++) {
       (spherePosAttr.array as Float32Array)[i] = originalSpherePositions[i];
