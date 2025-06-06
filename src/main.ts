@@ -408,8 +408,8 @@ const env_pos: number[] = [];
 const env_col: number[] = [];
 const temp_color = new THREE.Color();
 
-for (let i = -50; i < M; i+=0.5){
-  for (let j = -50; j < M; j+=0.5){
+for (let i = -50; i < M; i += 0.5) {
+  for (let j = -50; j < M; j += 0.5) {
     env_pos.push(i,-3,j);
 
     const vx = Math.abs(( i / 100 ) + 0.5);
@@ -417,17 +417,15 @@ for (let i = -50; i < M; i+=0.5){
     const vz = Math.abs(( j / 100 ) + 0.5);
 
     temp_color.setRGB(vx, vy, vz, THREE.SRGBColorSpace );
-
     env_col.push( temp_color.r, temp_color.g, temp_color.b );
-
   }
 }
 
 const envGeometry: THREE.BufferGeometry = new THREE.BufferGeometry();
-envGeometry.setAttribute('position', new THREE.Float32BufferAttribute(env_pos,3))
-envGeometry.setAttribute('color', new THREE.Float32BufferAttribute(env_col,3))
+envGeometry.setAttribute('position', new THREE.Float32BufferAttribute(env_pos, 3))
+envGeometry.setAttribute('color', new THREE.Float32BufferAttribute(env_col, 3))
 const envMat = new THREE.PointsMaterial({ size: 0.05, transparent: true, vertexColors: true});
-const env = new THREE.Points(envGeometry,envMat);
+const env = new THREE.Points(envGeometry, envMat);
 scene.add(env)
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -468,11 +466,46 @@ const gui: GUI = new GUI();
 const bgFolder = gui.addFolder('Background');
 bgFolder
   .addColor({ color: '#111111' }, 'color')
-  .name('background')
+  .name('color')
   .onChange((value: string) => {
     (scene.background! as THREE.Color).set(value);
   });
-bgFolder.open();
+
+// Environment controls
+const envSettings = {
+  particleSize: 0.05,
+  yPosition: -3,
+  intensity: 1.0,
+  visible: true
+};
+const envFolder = gui.addFolder('Environment Settings');
+envFolder.add(envSettings, 'particleSize', 0.01, 0.2).onChange(value => {
+  envMat.size = value;
+});
+envFolder.add(envSettings, 'yPosition', -10, 10).onChange(y => {
+  for (let i = 1; i < env_pos.length; i += 3) {
+    env_pos[i] = y;
+  }
+  envGeometry.attributes.position.needsUpdate = true;
+});
+envFolder.add(envSettings, 'intensity', 0.1, 2.0).onChange(intensity => {
+  env_col.length = 0;
+  for (let i = -50; i < M; i += 0.5) {
+    for (let j = -50; j < M; j += 0.5) {
+      const vx = Math.abs(( i / 100 ) + 0.5) * intensity;
+      const vy = Math.abs(( 1 / 100 ) + 0.5) * intensity;
+      const vz = Math.abs(( j / 100 ) + 0.5) * intensity;
+
+      temp_color.setRGB(vx, vy, vz, THREE.SRGBColorSpace);
+      env_col.push(temp_color.r, temp_color.g, temp_color.b);
+    }
+  }
+  envGeometry.setAttribute('color', new THREE.Float32BufferAttribute(env_col, 3));
+  envGeometry.attributes.color.needsUpdate = true;
+});
+envFolder.add(envSettings, 'visible').onChange(val => {
+  env.visible = val;
+});
 
 // Sphere color controls
 const sphereFolder = gui.addFolder('Sphere');
@@ -482,10 +515,9 @@ sphereFolder
   .onChange((value: string) => {
     sphereMaterial.color.set(value);
   });
-sphereFolder.open();
 
 // Particle RGB sliders
-const particleFolder = gui.addFolder('Colors');
+const particleFolder = gui.addFolder('Particle colors');
 particleFolder
   .add(params, 'red', 0, 1)
   .onChange((v: number) => {
@@ -501,20 +533,18 @@ particleFolder
   .onChange((v: number) => {
     uniforms.u_blue.value = v;
   });
-particleFolder.open();
 
 // Bloom controls
 const bloomFolder = gui.addFolder('Bloom');
-bloomFolder.add(params, 'threshold', 0, 1).onChange((v: number) => {
-  bloomPass.threshold = v;
-});
 bloomFolder.add(params, 'strength', 0, 3).onChange((v: number) => {
   bloomPass.strength = v;
+});
+bloomFolder.add(params, 'threshold', 0, 1).onChange((v: number) => {
+  bloomPass.threshold = v;
 });
 bloomFolder.add(params, 'radius', 0, 1).onChange((v: number) => {
   bloomPass.radius = v;
 });
-bloomFolder.open();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WINDOW RESIZE HANDLER
@@ -544,6 +574,9 @@ const noiseTimeScale = 1.5;
 const noiseAmplitude = 1.3;
 const baseSpike = 0.5;
 
+// Environment color change speed
+const speed = 0.03;
+
 // Bass
 const REST_BASS_SCALE = 1;
 const BASS_SENSIIVITY = 1.2;
@@ -568,6 +601,9 @@ const tempDir = new THREE.Vector3();
 // Sphere easing variables
 let targetBassScale = 1;
 let currentBassScale = 1;
+
+// Particle counter
+let count = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANIMATION LOOP
@@ -607,7 +643,6 @@ function animate(): void {
     bloomPass.radius    = baseRadius + (radiusIntensity * tr);
 
     // === SPHERE ===
-
     // Bass-driven scaling
     targetBassScale = REST_BASS_SCALE + BASS_SENSIIVITY * b;
     currentBassScale += (targetBassScale - currentBassScale) * 0.2;
@@ -685,9 +720,7 @@ function animate(): void {
     spherePosAttr.needsUpdate = true;
 
     // === PARTICLES ===
-
     const deltaTime = clock.getDelta(); // elapsed seconds since last frame
-
     for (let i = 0; i < N; i++) {
       const idx = 3 * i;
 
@@ -754,8 +787,41 @@ function animate(): void {
       particleVelocities[idx + 1] = tempVel.y;
       particleVelocities[idx + 2] = tempVel.z;
     }
-
     particleGeometry.attributes.position.needsUpdate = true;
+
+    // === ENVIRONMENT ===
+    function lerp(a: number, b: number, t: number): number {
+      return a + (b - a) * t;
+    }
+
+    const positions = env.geometry.attributes.position.array;
+    const colors = env.geometry.attributes.color.array;
+    const waveScaleX = 0.3;
+    const waveScaleY = 0.5;
+    const waveAmplitudeB = b;
+    const waveAmplitudeM = m;
+    
+    const tR = 0.5 + 0.5 * Math.sin(count * speed + 0);
+    const tG = 0.5 + 0.5 * Math.sin(count * speed + (Math.PI * 2) / 3);
+    const tB = 0.5 + 0.5 * Math.sin(count * speed + (Math.PI * 4) / 3);
+
+    let i = 0;
+    for (let ix = 0; ix < 3 * M; ix++) {
+      const sinX = waveAmplitudeB * Math.sin((ix + count) * waveScaleX);
+      for (let iy = 0; iy < 3 * M; iy++) {
+        const sinY = waveAmplitudeM * Math.sin((iy + count) * waveScaleY);
+        positions[i + 1] = sinX + sinY - 3;
+        colors[i + 0] = lerp(colors[i + 0], tR, 0.05);
+        colors[i + 1] = lerp(colors[i + 1], tG, 0.05);
+        colors[i + 2] = lerp(colors[i + 2], tB, 0.05);
+
+        i += 3;
+      }
+    }
+    env.geometry.attributes.position.needsUpdate = true;
+    env.geometry.attributes.color.needsUpdate = true;
+    count += 0.1;
+
   } else {
     sphericalParticles.visible = false;
     // sphereMesh.scale.set(1, 1, 1);
