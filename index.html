@@ -2,57 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3D Audio Visualizer</title>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-      }
-      #controls {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        z-index: 10;
-        color: white;
-      }
-      #controls label {
-        display: block;
-        margin-top: 5px;
-      }
-    </style>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css">
   </head>
   <body>
-
     <div id="controls">
       <input type="file" id="audioUpload" accept="audio/*" />
       <label><input type="radio" name="audioSource" value="file" checked /> Use File</label>
       <label><input type="radio" name="audioSource" value="mic" /> Use Microphone</label>
+      <button type="button" id="pauseButton" class="control-button" disabled>
+        Pause
+      </button>
     </div>
-
-
-   
-
-    <script id="vertexshader" type="x-shader/x-vertex">
-      varying vec3 vNormal;
-      uniform float u_time;
-      void main() {
-        vNormal = normalize(normalMatrix * normal);
-        vec3 pos = position + normal * sin(u_time + position.y * 5.0) * 0.3;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-      }
-    </script>
-    <script id="fragmentshader" type="x-shader/x-fragment">
-      uniform float u_frequency;
-      uniform float u_red;
-      uniform float u_green;
-      uniform float u_blue;
-      varying vec3 vNormal;
-      void main() {
-        float intensity = pow(0.9 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-        vec3 color = vec3(u_red, u_green, u_blue) * intensity * (u_frequency / 256.0);
-        gl_FragColor = vec4(color, 1.0);
-      }
-    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
