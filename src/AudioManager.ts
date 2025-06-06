@@ -51,4 +51,8 @@ export default class AudioManager {
   getFrequency(): number {
     return this.analyser.getAverageFrequency() || 0;
   }
+
+  getFrequencyData(){
+    return this.analyser.getFrequencyData();
+  }
 }

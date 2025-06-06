@@ -20,6 +20,11 @@ export default {
     widthSegments: 64,
     heightSegments: 64,
   },
+  env: {
+    length: 10,
+    height: 10,
+    segments: 32,
+  },
   particles: {
     count: 500,
     spread: 30,
@@ -31,4 +36,5 @@ export default {
     strength: 0.5,
     radius: 0.8,
   },
+
 };

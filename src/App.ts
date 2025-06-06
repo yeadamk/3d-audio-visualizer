@@ -4,6 +4,7 @@ import SceneSetup    from '@/SceneSetup';
 import Camera        from '@/Camera';
 import AudioManager  from '@/AudioManager';
 import ShaderSphere  from '@/ShaderSphere';
+import Environment   from '@/Environment';
 import ParticleField from '@/ParticleField';
 import GUIManager    from '@/GUIManager';
 import ResizeHandler from '@/ResizeHandler';
@@ -24,6 +25,7 @@ export default class App {
   private renderer!: Renderer;
   private audio!: AudioManager;
   private sphere!: ShaderSphere;
+  private env!: Environment;
   private particles!: ParticleField;
   private gui!: GUIManager;
   private resizer!: ResizeHandler;
@@ -37,10 +39,14 @@ export default class App {
     this.renderer.setSceneCamera(this.sceneKit.scene, this.camera.camera);
     this.audio    = new AudioManager(this.camera.camera, config.audio);
     this.sphere   = new ShaderSphere(this.sceneKit.scene, config.mesh);
+    this.env      = new Environment(this.sceneKit.scene, {   length: 10,
+    height: 10,
+    segments: 32,});
     this.particles= new ParticleField(this.sceneKit.scene, config.particles);
     this.gui      = new GUIManager(this.sphere.uniforms, this.renderer.bloomPass, config);
     this.resizer  = new ResizeHandler(this.renderer, this.camera);
     this.clock    = new THREE.Clock();
+
   }
 
   public init(): void {
@@ -61,6 +67,8 @@ export default class App {
       this.camera.update();
       this.sphere.update(t, freq);
       this.particles.update(freq);
+      console.log("what")
+      this.env.update(t, freq);
       this.renderer.render();
     };
     tick();

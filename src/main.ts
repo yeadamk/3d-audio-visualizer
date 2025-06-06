@@ -191,7 +191,7 @@ function animate(): void {
   const tr = treble / 256;
 
   const posAttr = particleGeometry.getAttribute('position') as THREE.BufferAttribute;
-applyTrebleBumps(posAttr, originalPositions, tr, N);
+  applyTrebleBumps(posAttr, originalPositions, tr, N);
 
 
   let model_transform = new THREE.Matrix4();
