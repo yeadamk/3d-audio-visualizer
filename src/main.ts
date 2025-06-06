@@ -11,6 +11,7 @@ import { rotationMatrixY, rotationMatrixZ, scaleMatrix, shearMatrix } from '@/ut
 import { createNoise4D } from 'simplex-noise';
 import vertexShader from '@/shaders/vertex.glsl';
 import fragmentShader from '@/shaders/fragment.glsl';
+import { applyTrebleBumps } from './utils/applyTreble';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RENDERER, SCENE, CAMERA
@@ -718,6 +719,9 @@ function animate(): void {
       );
     }
     spherePosAttr.needsUpdate = true;
+
+    applyTrebleBumps(particlePositions, originalParticlePositions, tr, N);
+
 
     // === PARTICLES ===
     const deltaTime = clock.getDelta(); // elapsed seconds since last frame
