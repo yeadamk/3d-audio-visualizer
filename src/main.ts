@@ -120,24 +120,32 @@ scene.add(particleGroup);
 //const envGeometry = new THREE.PlaneGeometry(100 ,100,32,32);
 const M = 100
 const env_pos: number[] = [];
-for (let i = -50; i < M; i+=0.6){
-  for (let j = -50; j < M; j+=0.6){
+const env_col: number[] = [];
+const temp_color = new THREE.Color();
+
+for (let i = -50; i < M; i+=0.5){
+  for (let j = -50; j < M; j+=0.5){
     env_pos.push(i,-3,j);
+
+    const vx = Math.abs(( i / 100 ) + 0.5);
+    const vy = Math.abs(( 1 / 100 ) + 0.5);
+    const vz = Math.abs(( j / 100 ) + 0.5);
+
+    temp_color.setRGB(vx, vy, vz, THREE.SRGBColorSpace );
+
+    env_col.push( temp_color.r, temp_color.g, temp_color.b );
+
   }
 }
 
 
+
 const envGeometry: THREE.BufferGeometry = new THREE.BufferGeometry();
 envGeometry.setAttribute('position', new THREE.Float32BufferAttribute(env_pos,3))
-const envMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, blending: THREE.AdditiveBlending });
+envGeometry.setAttribute('color', new THREE.Float32BufferAttribute(env_col,3))
+const envMat = new THREE.PointsMaterial({ size: 0.05, transparent: true, vertexColors: true});
 const env = new THREE.Points(envGeometry,envMat);
 scene.add(env)
-//  const env = new Environment(scene,{
-//    length: 5,
-//    height: 5,
-//    segments: 32
-//  })
-
 
 // === GUI Controls ===
 const params = { red: 1.0, green: 1.0, blue: 1.0, threshold: 0.5, strength: 0.5, radius: 0.8 };
@@ -229,26 +237,20 @@ function animate(): void {
     .multiply(rotationMatrixZ(t * 0.7 * tr))
     .multiply(translationMatrix(Math.sin(t * 2) * tr, bounceY, 0));
 
-
-    //env.position.y -= 5
-    //cam;
-    //camera.position
     //env.lookAt(camera.position)
 
-    //env.scale.multiplyVectors(bass * )
 
     const positions = env.geometry.attributes.position.array;
+    const col = env.geometry.attributes.color.array;
 
 				let i = 0, j = 0;
 				for ( let ix = 0; ix < 3*M; ix ++ ) {
 					for ( let iy = 0; iy < 3*M; iy ++ ) {
-						//positions[i] = 1;
-            positions[ i + 1 ] = b * ( Math.sin( ( ix + count ) * 0.3 ) * 1 ) +
+            positions[i + 1] = b * ( Math.sin( ( ix + count ) * 0.3 ) * 1 ) +
 										 m * ( Math.sin( ( iy + count ) * 0.5 ) * 1 ) - 3;
-
-						// scales[ j ] = ( Math.sin( ( ix + count ) * 0.3 ) + 1 ) * 20 +
-						// 				( Math.sin( ( iy + count ) * 0.5 ) + 1 ) * 20;
-
+            col[i+1] = (b + tr) / 10
+						  // col[ j ] = ( Math.sin( ( ix + count ) * 0.3 ) + 1 )  +
+						  // 				( Math.sin( ( iy + count ) * 0.5 ) + 1 ) ;
 						i += 3;
 						j ++;
 
@@ -257,6 +259,7 @@ function animate(): void {
 				}
 
 				env.geometry.attributes.position.needsUpdate = true;
+				env.geometry.attributes.color.needsUpdate = true;
         count += 0.1;
 
 
