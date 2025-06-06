@@ -315,6 +315,8 @@ window.addEventListener('keydown', (event) => {
   switch (event.key) {
     case '1':
       sphereMaterial.wireframe = true;
+      ambientLight.intensity = 1.0;
+      sphereMaterial.transparent = false;
       applyDefaultMaterial();
       break;
     case '2':
@@ -327,6 +329,9 @@ window.addEventListener('keydown', (event) => {
       break;
     case 'w':
       sphereMaterial.wireframe = !sphereMaterial.wireframe;
+      ambientLight.intensity = sphereMaterial.wireframe ? 1.0 : 0.05;
+      sphereMaterial.transparent = sphereMaterial.wireframe ? false : true;
+      spotLight.intensity = sphereMaterial.wireframe ? 10.0 : 150.0;
       sphereMaterial.needsUpdate = true;
       break;
     default:
@@ -395,31 +400,33 @@ function applyRockyPack() {
 // ─────────────────────────────────────────────────────────────────────────────
 // LIGHTING
 // ─────────────────────────────────────────────────────────────────────────────
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
 scene.add(ambientLight);
 
-const rimLight = new THREE.DirectionalLight(0x5599ff, 0.4);
+const rimLight = new THREE.DirectionalLight(0x5599ff, 0.3);
 rimLight.position.set(-1, 2, -3);
 scene.add(rimLight);
 
-const fillLight = new THREE.DirectionalLight(0xffaa66, 0.4);
+const fillLight = new THREE.DirectionalLight(0xffaa66, 0.3);
 fillLight.position.set(2, -1, 1);
 scene.add(fillLight);
 
-const spotLight = new THREE.SpotLight(0xffffff, 1.2);
-spotLight.position.set(0, 6, 0);                // high above the sphere
-spotLight.angle = Math.PI / 6;                  // cone angle (30°)
-spotLight.penumbra = 0.2;                       // soft edge
-spotLight.decay = 2;                            // falloff
-spotLight.distance = 15;                        // max range
+const LIGHT_HEIGHT = 20; // height of spotlight above sphere center
+const halfAngle = Math.atan(SPHERE_RADIUS / LIGHT_HEIGHT); // ≈atan(2/5) ≈0.3805 rad (≈21.8°)
 
-// Enable shadow casting for this light:
+const spotLight = new THREE.SpotLight(0xffffff, 10.0);
+spotLight.position.set(0, LIGHT_HEIGHT, 0);
+spotLight.angle = halfAngle * 10;
+spotLight.penumbra = 0.3;
+spotLight.decay = 2;
+spotLight.distance = 30;
+
 spotLight.castShadow = true;
-spotLight.shadow.mapSize.width = 2048;          // increase for crisper shadows
+spotLight.shadow.mapSize.width = 2048;
 spotLight.shadow.mapSize.height = 2048;
 spotLight.shadow.camera.near = 1;
 spotLight.shadow.camera.far = 50;
-spotLight.shadow.camera.fov = 15;               // match angle
+spotLight.shadow.camera.fov = (halfAngle * 180) / Math.PI * 2;
 
 scene.add(spotLight);
 spotLight.target = sphereMesh;
@@ -593,9 +600,9 @@ const GRAVITY = 300;           // Gravity acceleration (y-axis)
 const BOUNCE_DAMPING = 0.05;   // Speed retained after a bounce
 const PARTICLE_DRAG = 0.98;
 
-const noiseSpatialScale = 2;
-const noiseTimeScale = 1.8;
-const noiseAmplitude = 1.3;
+const noiseSpatialScale = 1.1;
+const noiseTimeScale = 0.9;
+const noiseAmplitude = 10;
 const baseSpike = 0.5;
 
 // Environment color change speed
@@ -720,10 +727,13 @@ function animate(): void {
     sphereMesh.matrix.copy(combinedSphereMatrix);
 
     // Spikes: displace each vertex along its normal
+    const vertexCount = sphereGeometry.attributes.position.count;
+    const currentSpikes = new Float32Array(vertexCount).fill(0);
+
     const spherePosAttr = sphereGeometry.attributes.position as THREE.BufferAttribute;
     const sphereNormAttr = sphereGeometry.attributes.normal as THREE.BufferAttribute;
 
-    for (let i = 0; i < spherePosAttr.count; i++) {
+    for (let i = 0; i < vertexCount; i++) {
       // original position of this vertex (x,y,z)
       const idx3 = 3 * i;
       const ox = originalSpherePositions[idx3 + 0];
@@ -745,15 +755,23 @@ function animate(): void {
       // only allow outward spikes (clamp negative noise to zero)
       const positiveNoise = Math.max(0, noiseVal);
 
-      const spikeMagnitude =
-        (m + tr) * (baseSpike + positiveNoise * noiseAmplitude);
+      // Calculate target spike magnitude
+      const targetSpike = (m + tr) * (baseSpike + positiveNoise * noiseAmplitude);
+      
+      // Ease currentSpikes[i] → targetSpike each frame
+      currentSpikes[i] += (targetSpike - currentSpikes[i]) * 0.25;
 
+      const disp = currentSpikes[i];
       spherePosAttr.setXYZ(
         i,
-        ox + nx * spikeMagnitude,
-        oy + ny * spikeMagnitude,
-        oz + nz * spikeMagnitude
+        ox + nx * disp,
+        oy + ny * disp,
+        oz + nz * disp
       );
+
+      if (disp > 5) {
+        sphereGeometry.computeVertexNormals();
+      }
     }
     spherePosAttr.needsUpdate = true;
 
