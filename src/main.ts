@@ -401,6 +401,36 @@ fillLight.position.set(2, -1, 1);
 scene.add(fillLight);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ENVIRONMENT PARTICLES
+// ─────────────────────────────────────────────────────────────────────────────
+const M = 100
+const env_pos: number[] = [];
+const env_col: number[] = [];
+const temp_color = new THREE.Color();
+
+for (let i = -50; i < M; i+=0.5){
+  for (let j = -50; j < M; j+=0.5){
+    env_pos.push(i,-3,j);
+
+    const vx = Math.abs(( i / 100 ) + 0.5);
+    const vy = Math.abs(( 1 / 100 ) + 0.5);
+    const vz = Math.abs(( j / 100 ) + 0.5);
+
+    temp_color.setRGB(vx, vy, vz, THREE.SRGBColorSpace );
+
+    env_col.push( temp_color.r, temp_color.g, temp_color.b );
+
+  }
+}
+
+const envGeometry: THREE.BufferGeometry = new THREE.BufferGeometry();
+envGeometry.setAttribute('position', new THREE.Float32BufferAttribute(env_pos,3))
+envGeometry.setAttribute('color', new THREE.Float32BufferAttribute(env_col,3))
+const envMat = new THREE.PointsMaterial({ size: 0.05, transparent: true, vertexColors: true});
+const env = new THREE.Points(envGeometry,envMat);
+scene.add(env)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POSTPROCESSING
 // ─────────────────────────────────────────────────────────────────────────────
 const params = {
