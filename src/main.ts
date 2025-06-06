@@ -7,7 +7,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { rotationMatrixY, rotationMatrixZ, scaleMatrix, shearMatrix } from '@/utils/matrixUtils';
+import { translationMatrix, rotationMatrixY, rotationMatrixZ, scaleMatrix, shearMatrix } from '@/utils/matrixUtils';
 import { createNoise4D } from 'simplex-noise';
 import vertexShader from '@/shaders/vertex.glsl';
 import fragmentShader from '@/shaders/fragment.glsl';
