@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { applyTrebleBumps } from './utils/applyTreble';
+import Environment from './Environment';
 
 // === Setup ===
 const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true });
@@ -115,6 +116,29 @@ const particleGroup: THREE.Object3D = new THREE.Object3D();
 particleGroup.add(sphericalParticles);
 scene.add(particleGroup);
 
+// == Environment Particles
+//const envGeometry = new THREE.PlaneGeometry(100 ,100,32,32);
+const M = 100
+const env_pos: number[] = [];
+for (let i = -50; i < M; i+=0.6){
+  for (let j = -50; j < M; j+=0.6){
+    env_pos.push(i,-3,j);
+  }
+}
+
+
+const envGeometry: THREE.BufferGeometry = new THREE.BufferGeometry();
+envGeometry.setAttribute('position', new THREE.Float32BufferAttribute(env_pos,3))
+const envMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, blending: THREE.AdditiveBlending });
+const env = new THREE.Points(envGeometry,envMat);
+scene.add(env)
+//  const env = new Environment(scene,{
+//    length: 5,
+//    height: 5,
+//    segments: 32
+//  })
+
+
 // === GUI Controls ===
 const params = { red: 1.0, green: 1.0, blue: 1.0, threshold: 0.5, strength: 0.5, radius: 0.8 };
 const gui: GUI = new GUI();
@@ -177,7 +201,7 @@ function shearMatrix(shxy: number, shxz: number, shyx: number, shyz: number, shz
     0, 0, 0, 1
   );
 }
-
+let count = 0;
 // === Animate Loop ===
 function animate(): void {
   requestAnimationFrame(animate);
@@ -204,6 +228,39 @@ function animate(): void {
     .multiply(rotationMatrixY(t * 1.5 * tr))
     .multiply(rotationMatrixZ(t * 0.7 * tr))
     .multiply(translationMatrix(Math.sin(t * 2) * tr, bounceY, 0));
+
+
+    //env.position.y -= 5
+    //cam;
+    //camera.position
+    //env.lookAt(camera.position)
+
+    //env.scale.multiplyVectors(bass * )
+
+    const positions = env.geometry.attributes.position.array;
+
+				let i = 0, j = 0;
+				for ( let ix = 0; ix < 3*M; ix ++ ) {
+					for ( let iy = 0; iy < 3*M; iy ++ ) {
+						//positions[i] = 1;
+            positions[ i + 1 ] = b * ( Math.sin( ( ix + count ) * 0.3 ) * 1 ) +
+										 m * ( Math.sin( ( iy + count ) * 0.5 ) * 1 ) - 3;
+
+						// scales[ j ] = ( Math.sin( ( ix + count ) * 0.3 ) + 1 ) * 20 +
+						// 				( Math.sin( ( iy + count ) * 0.5 ) + 1 ) * 20;
+
+						i += 3;
+						j ++;
+
+					}
+
+				}
+
+				env.geometry.attributes.position.needsUpdate = true;
+        count += 0.1;
+
+
+
 
   particleGroup.matrixAutoUpdate = false;
   particleGroup.matrix.copy(model_transform);

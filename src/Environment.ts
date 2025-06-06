@@ -6,7 +6,7 @@ import fragmentSrc from '@/shaders/fragment.glsl';
 
 export default class Environment{
   public readonly uniforms: Record<string, { value: number }>;
-  private mesh: THREE.Mesh;
+  private mesh: THREE.Points;
 
     constructor(scene: THREE.Scene, config:{
         length:     number;
@@ -18,13 +18,15 @@ export default class Environment{
             u_frequency: {value: 0.0},
         };
 
-        const material = new THREE.ShaderMaterial({
-      uniforms:       this.uniforms,
-      vertexShader:   vertexSrc,
-      fragmentShader: fragmentSrc,
-      transparent:    false,
-      blending:       THREE.AdditiveBlending,
-      depthWrite:     false,
+    const material = new THREE.ShaderMaterial({
+        side: THREE.DoubleSide,
+
+        uniforms:       this.uniforms,
+        vertexShader:   vertexSrc,
+        fragmentShader: fragmentSrc,
+        transparent:    true,
+        //blending:       THREE.AdditiveBlending,
+        //depthWrite:     false,
     });
     console.log("guugaog");
     const geometry = new THREE.PlaneGeometry(
@@ -33,7 +35,8 @@ export default class Environment{
         config.segments,
         config.segments
     );
-    this.mesh = new THREE.Mesh(geometry,material); 
+    //this.mesh = new THREE.Mesh(geometry,material); 
+    this.mesh = new THREE.Points(geometry,new THREE.ShaderMaterial({vertexShader:vertexSrc,fragmentShader:fragmentSrc}));
     this.mesh.matrixAutoUpdate = false;
     scene.add(this.mesh);
     }
