@@ -14,6 +14,57 @@ import vertexShader from '@/shaders/vertex.glsl';
 import fragmentShader from '@/shaders/fragment.glsl';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+const GRAVITY = 300;           // Gravity acceleration (y-axis)
+const BOUNCE_DAMPING = 0.05;   // Speed retained after a bounce
+const PARTICLE_DRAG = 0.98;
+
+const noiseSpatialScale = 1.1;
+const noiseTimeScale = 0.9;
+const noiseAmplitude = 10;
+const baseSpike = 0.5;
+
+// Environment color change speed
+const envColorSpeed = 0.03;
+
+// Bass
+const REST_BASS_SCALE = 1;
+const BASS_SENSIIVITY = 1.2;
+
+// Cutoffs
+const bassCutoff = 0.7;       // 70%
+const midCutoff = 0.0;        // 0%
+const trebleCutoff = 0.0;     // 0%
+
+// Bloom
+let baseStrength = 0.6;
+const strengthIntensity = 0.7;
+
+let baseThreshold = 0.4;
+const thresholdIntensity = 0.3;
+
+let baseRadius = 0.8;
+const radiusIntensity = 0.5;
+
+const noise4D = createNoise4D();
+
+// Temporary vectors to avoid allocations per‐particle
+const tempPos = new THREE.Vector3();
+const tempVel = new THREE.Vector3();
+const tempDir = new THREE.Vector3();
+
+// Sphere easing variables
+let targetBassScale = 1;
+let currentBassScale = 1;
+
+// Particle counter
+let count = 0;
+
+// Camera rotation
+const cameraRotationSpeed = 1;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RENDERER, SCENE, CAMERA
 // ─────────────────────────────────────────────────────────────────────────────
 const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true});
@@ -38,6 +89,10 @@ camera.lookAt(0, 0, 0);
 const controls: OrbitControls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.enableDamping = true;
+controls.enableZoom = true;
+controls.enableRotate = true;
+controls.autoRotate = false; 
+controls.autoRotateSpeed = cameraRotationSpeed;
 controls.minDistance = 5;
 controls.maxDistance = 30;
 
@@ -52,7 +107,7 @@ let micStream: MediaStream | null = null;
 let micSource: THREE.Audio | null = null;
 
 // Create an AudioAnalyser
-let analyser: THREE.AudioAnalyser = new THREE.AudioAnalyser(sound, 32);
+let analyser: THREE.AudioAnalyser = new THREE.AudioAnalyser(sound, 128);
 
 // File and mic setup
 const fileInput = document.getElementById('audioUpload') as HTMLInputElement;
@@ -78,7 +133,7 @@ function setupFileUpload(): void {
 function setupMicrophoneInput(): void {
   if (sound && sound.isPlaying) sound.stop();
   sound = new THREE.Audio(listener);
-  analyser = new THREE.AudioAnalyser(sound, 32);
+  analyser = new THREE.AudioAnalyser(sound, 128);
 
   fileInput.value = '';
   fileInput.disabled = true;
@@ -86,15 +141,20 @@ function setupMicrophoneInput(): void {
   pauseButton.disabled = true;
   pauseButton.textContent = 'Listen';
 
+  // Ensure audio context is active
+  const audioContext = THREE.AudioContext.getContext();
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
   navigator.mediaDevices
     .getUserMedia({ audio: true })
     .then((stream) => {
       micStream = stream;
       micSource = new THREE.Audio(listener);
       micSource.setMediaStreamSource(stream);
-      micSource.play();
-      
-      analyser = new THREE.AudioAnalyser(micSource, 32);
+            
+      analyser = new THREE.AudioAnalyser(micSource, 128);
 
       pauseButton.disabled = false;
       pauseButton.textContent = 'Pause';
@@ -139,7 +199,7 @@ fileInput.addEventListener('change', (e: Event) => {
       sound = new THREE.Audio(listener);
       sound.setBuffer(decodedData);
 
-      analyser = new THREE.AudioAnalyser(sound, 32);
+      analyser = new THREE.AudioAnalyser(sound, 128);
       sound.play();
 
       pauseButton.disabled = false;
@@ -462,21 +522,12 @@ scene.add(env)
 // ─────────────────────────────────────────────────────────────────────────────
 // POSTPROCESSING
 // ─────────────────────────────────────────────────────────────────────────────
-const params = {
-  red: 1.0,
-  green: 1.0,
-  blue: 1.0,
-  strength: 0.5,
-  radius: 0.5,
-  threshold: 0.5,
-};
-
 const renderScene: RenderPass = new RenderPass(scene, camera);
 const bloomPass: UnrealBloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  params.strength,
-  params.radius,
-  params.threshold
+  baseStrength,
+  baseThreshold,
+  baseRadius
 );
 const afterimagePass: AfterimagePass = new AfterimagePass();
 afterimagePass.uniforms['damp'].value = 0.6;
@@ -548,34 +599,53 @@ sphereFolder
   });
 
 // Particle RGB sliders
+const colors = {
+  red: 1.0,
+  green: 1.0,
+  blue: 1.0,
+};
 const particleFolder = gui.addFolder('Particle colors');
 particleFolder
-  .add(params, 'red', 0, 1)
+  .add(colors, 'red', 0, 1)
   .onChange((v: number) => {
     uniforms.u_red.value = v;
   });
 particleFolder
-  .add(params, 'green', 0, 1)
+  .add(colors, 'green', 0, 1)
   .onChange((v: number) => {
     uniforms.u_green.value = v;
   });
 particleFolder
-  .add(params, 'blue', 0, 1)
+  .add(colors, 'blue', 0, 1)
   .onChange((v: number) => {
     uniforms.u_blue.value = v;
   });
 
 // Bloom controls
+const bloomParams = {
+  audioBloom: true,
+  strength: baseStrength,
+  threshold: baseThreshold,
+  radius: baseRadius
+}
 const bloomFolder = gui.addFolder('Bloom');
-bloomFolder.add(params, 'strength', 0, 3).onChange((v: number) => {
-  bloomPass.strength = v;
-});
-bloomFolder.add(params, 'threshold', 0, 1).onChange((v: number) => {
-  bloomPass.threshold = v;
-});
-bloomFolder.add(params, 'radius', 0, 1).onChange((v: number) => {
-  bloomPass.radius = v;
-});
+bloomFolder
+  .add(bloomParams, 'audioBloom')
+bloomFolder
+  .add({ baseStrength }, 'baseStrength', 0, 3)
+  .onChange(v => baseStrength = v);
+bloomFolder
+  .add({ baseThreshold }, 'baseThreshold', 0, 1)
+  .onChange(v => baseThreshold = v);
+bloomFolder
+  .add({ baseRadius }, 'baseRadius', 0, 1)
+  .onChange(v => baseRadius = v);
+bloomFolder
+  .add(bloomParams, 'strength', 0, 3)
+bloomFolder
+  .add(bloomParams, 'threshold', 0, 1)
+bloomFolder
+  .add(bloomParams, 'radius', 0, 1)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WINDOW RESIZE HANDLER
@@ -594,54 +664,6 @@ window.addEventListener('resize', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-const GRAVITY = 300;           // Gravity acceleration (y-axis)
-const BOUNCE_DAMPING = 0.05;   // Speed retained after a bounce
-const PARTICLE_DRAG = 0.98;
-
-const noiseSpatialScale = 1.1;
-const noiseTimeScale = 0.9;
-const noiseAmplitude = 10;
-const baseSpike = 0.5;
-
-// Environment color change speed
-const speed = 0.03;
-
-// Bass
-const REST_BASS_SCALE = 1;
-const BASS_SENSIIVITY = 1.2;
-
-// Cutoffs
-const bassCutoff = 0.7;       // 70%
-const midCutoff = 0.0;        // 0%
-const trebleCutoff = 0.1;     // 10%
-
-// Bloom
-const baseStrength = 0.6;
-const strengthIntensity = 0.7;
-
-const baseThreshold = 0.4;
-const thresholdIntensity = 0.3;
-
-const baseRadius = 0.8;
-const radiusIntensity = 0.5;
-
-const noise4D = createNoise4D();
-
-// Temporary vectors to avoid allocations per‐particle
-const tempPos = new THREE.Vector3();
-const tempVel = new THREE.Vector3();
-const tempDir = new THREE.Vector3();
-
-// Sphere easing variables
-let targetBassScale = 1;
-let currentBassScale = 1;
-
-// Particle counter
-let count = 0;
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ANIMATION LOOP
 // ─────────────────────────────────────────────────────────────────────────────
 const clock: THREE.Clock = new THREE.Clock();
@@ -653,20 +675,25 @@ function animate(): void {
   uniforms.u_time.value = time; // for vertex shader
 
   const isAudioPlaying = (micSource !== null) || (!!sound && sound.isPlaying);
+  let rotateCamera = false;
 
   // Get frequency data from analyser
   if (isAudioPlaying) {
     sphericalParticles.visible = true;
     const freqData: Uint8Array = analyser.getFrequencyData();
 
-    // Compute an overall “frequency” value
+    // Compute an overall frequency value
     const avgFreq = freqData.reduce((sum, v) => sum + v, 0) / freqData.length;
     uniforms.u_frequency.value = avgFreq;
 
     // Split the frequency data into bass / mid / treble in range [0..255]
-    const bass = freqData.slice(0, 4).reduce((a, b) => a + b, 0) / 4;
-    const mid = freqData.slice(4, 16).reduce((a, b) => a + b, 0) / 12;
-    const treble = freqData.slice(16).reduce((a, b) => a + b, 0) / 16;
+    const bassBins = freqData.slice(0, 16);
+    const midBins = freqData.slice(16, 48);
+    const trebleBins = freqData.slice(48);
+
+    const bass = bassBins.reduce((a, b) => a + b, 0) / bassBins.length;
+    const mid = midBins.reduce((a, b) => a + b, 0) / midBins.length;
+    const treble = trebleBins.reduce((a, b) => a + b, 0) / trebleBins.length;
 
     // Normalize to range [0..1]
     const bNorm = bass / 256;
@@ -678,10 +705,26 @@ function animate(): void {
     const m = (mNorm > midCutoff) ? (mNorm - midCutoff) / (1 - midCutoff) : 0;
     const tr = (tNorm > trebleCutoff) ? (tNorm - trebleCutoff) / (1 - trebleCutoff) : 0;
 
+    // Camera rotation
+    if (b > 0.6 || m > 0.5) {
+      rotateCamera = true;
+    } else {
+      rotateCamera = false;
+    }
+
+    // Debugging
+    // console.log(b, m, tr);
+
     // Dynamic bloom adjustments
-    bloomPass.strength  = baseStrength + (m + tr) * strengthIntensity;
-    bloomPass.threshold = baseThreshold - (thresholdIntensity * tr);
-    bloomPass.radius    = baseRadius + (radiusIntensity * tr);
+    if (bloomParams.audioBloom) {
+      bloomPass.strength  = baseStrength  + (m + tr) * strengthIntensity;
+      bloomPass.threshold = baseThreshold - (thresholdIntensity * tr);
+      bloomPass.radius    = baseRadius   + (radiusIntensity * tr);
+    } else {
+      bloomPass.strength  = bloomParams.strength;
+      bloomPass.threshold = bloomParams.threshold;
+      bloomPass.radius    = bloomParams.radius;
+    }
 
     // === SPHERE ===
     // Bass-driven scaling
@@ -861,9 +904,9 @@ function animate(): void {
     const waveAmplitudeB = b;
     const waveAmplitudeM = m;
     
-    const tR = 0.5 + 0.5 * Math.sin(count * speed + 0);
-    const tG = 0.5 + 0.5 * Math.sin(count * speed + (Math.PI * 2) / 3);
-    const tB = 0.5 + 0.5 * Math.sin(count * speed + (Math.PI * 4) / 3);
+    const tR = 0.5 + 0.5 * Math.sin(count * envColorSpeed + 0);
+    const tG = 0.5 + 0.5 * Math.sin(count * envColorSpeed + (Math.PI * 2) / 3);
+    const tB = 0.5 + 0.5 * Math.sin(count * envColorSpeed + (Math.PI * 4) / 3);
 
     let i = 0;
     for (let ix = 0; ix < 3 * M; ix++) {
@@ -881,7 +924,6 @@ function animate(): void {
     env.geometry.attributes.position.needsUpdate = true;
     env.geometry.attributes.color.needsUpdate = true;
     count += 0.1;
-
   } else {
     sphericalParticles.visible = false;
     // sphereMesh.scale.set(1, 1, 1);
@@ -898,6 +940,7 @@ function animate(): void {
     particleGeometry.attributes.position.needsUpdate = true;
   }
 
+  controls.autoRotate = rotateCamera;
   controls.update();
   composer.render();
 
