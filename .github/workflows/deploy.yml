@@ -6,6 +6,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read  # for checkout, caching, etc.
+  pages: write    # allow pushing to the Pages branch
+
 jobs:
   build-and-deploy:
     # Only run one job at a time
@@ -44,4 +48,3 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           publish_branch: gh-pages
-          clean: true
