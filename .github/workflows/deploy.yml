@@ -6,16 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read  # for checkout, caching, etc.
-  pages: write    # allow pushing to the Pages branch
+  contents: write
+  pages: write
 
 jobs:
   build-and-deploy:
-    # Only run one job at a time
     concurrency:
       group: build-and-deploy
       cancel-in-progress: true
 
+    needs: cleanup
     runs-on: ubuntu-latest
     env:
       CI: true
