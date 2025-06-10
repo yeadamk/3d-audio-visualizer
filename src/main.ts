@@ -542,7 +542,8 @@ composer.addPass(outputPass);
 // ─────────────────────────────────────────────────────────────────────────────
 // GUI CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
-const gui: GUI = new GUI();
+const guiWidth = window.innerWidth < 600 ? window.innerWidth * 0.4 : 245;
+const gui = new GUI({ width: guiWidth });
 
 // Background color controls
 const bgFolder = gui.addFolder('Background');

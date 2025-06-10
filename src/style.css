@@ -12,6 +12,7 @@ body {
 }
 
 #controls {
+  font-size: 1rem;
   position: absolute;
   top: 1.5rem;
   left: 1.5rem;
@@ -22,7 +23,7 @@ body {
 
 #pauseButton {
   width: 8rem;
-  height: 1.5rem;
+  height: 1.8rem;
   margin-top: 1rem;
 }
 
@@ -33,4 +34,30 @@ body {
 #controls label {
   display: block;
   margin-top: 0.3rem;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  #controls {
+    top: 1.5rem;
+    left: 1.5rem;
+    transform: scale(0.8);
+    transform-origin: 0 0;
+  }
+
+  #audioUpload {
+    margin-bottom: .8rem;
+  }
+
+  #controls label {
+    margin-top: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  #pauseButton {
+    width: 7rem;
+    height: 2rem;
+    margin-top: 1.5rem;
+    font-size: 1rem;
+  }
 }
