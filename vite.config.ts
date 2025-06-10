@@ -2,7 +2,8 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import glsl from 'vite-plugin-glsl';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/3d-audio-visualizer/' : '/',
   plugins: [
     tsconfigPaths(),
     glsl({
@@ -18,4 +19,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
-});
+}));
